@@ -1,0 +1,164 @@
+library(shiny)
+shinyUI(ui <- fluidPage(
+  titlePanel("Birth & Death Process"),
+  #  sidebarLayout(
+  sidebarPanel(
+  helpText("Birth-and-death processes form a large classs of time reversible, continuous-time Markov chains. For these
+             processes, transitions only occur to neighboring states. \\(Births\\) occur from \\(i\\) to \\(i+1\\) at rate lambda. \\(Deaths\\) occur from \\(i\\) to \\(i-1\\) at rate Mu"),
+    withMathJax(),
+    helpText('First property demonstrated by this app is that the empirical mean calculated by simulation
+             converges to the stationary distribution by entering 3 values for time of the simulation, birth rate and death rate, respectively.'),
+    helpText('The second property confirms the fact that by having enough simulation time, the process arrives in a steady state and the empirical limiting distribution
+             matches the stationary distribution.'),
+    helpText("We can use the following formula to calculate the stationary distribution:"),
+    helpText(" \\(P*Q = 0\\)"),
+    helpText("The solution to this equation,in M/M/infinity model, gives us long-run probability \\(P_{k} \\) for each state:"),
+    helpText("\\(P_{k} = exp(-Lambda/Mu)*(Lambda/Mu)^k/k! \\) "),
+    helpText('Finally, time reversibility for this process is evaluated by randomly selecting three states and checking whether the reversibility theorem is valid or not. Time reversibility equation
+             is as follows.'),
+    helpText("\\(P_{i}*Lambda_{i} = P_{i+1}*Mu_{i+1} \\)"),
+    helpText("If this equation holds for all the states, we can confidently conclude that the process is time reversible! "),
+    numericInput(inputId = "Time", 
+                 label = "Enter the time of simulation (t)", 
+                 value = 200, min = 1, max = 400),
+    numericInput(inputId = "Lambda", 
+                 label = "Enter arrival rate (Lambda)", 
+                 value = 10, min = 0, max = 100),
+    numericInput(inputId = "Mu", 
+                 label = "Enter service average time (1/Mu)", 
+                 value = 10, min = 0, max = 100),
+    
+    # User specifies Lambda and Lambda 
+    actionButton ("do", "Press the button!")
+    ),
+  #  ),    
+  
+  mainPanel(
+    plotOutput("Hist1"),
+    textOutput("trueval"),
+    textOutput("confidence"),
+    plotOutput("Hist2"),
+    plotOutput("Hist3"),
+    textOutput("reverse"),
+    tags$head(tags$style("#reverse{color: black;
+                         font-size: 20px;
+                         font-style: bold;
+                         }"
+                         )
+    ),
+    htmlOutput("reverse2"),
+    tags$head(tags$style("#reverse2{color: black;
+                         font-size: 20px;
+                         font-style: bold;
+                         }"
+                         )
+    ),
+    textOutput("reverse3"),
+    tags$head(tags$style("#reverse3{color: black;
+                         font-size: 20px;
+                         font-style: bold;
+                         }"
+                         )
+    )
+    
+    ),
+  
+  tags$footer("R Shiny application created by:", tags$b("Ramin Giahi, Farshad Niayeshpour, Reyhaneh Bijari"),tags$br() ,
+              "Department of Industrial and Manufacturing Systems Engineering",tags$br(),
+              "Iowa State University",
+              align = "left", style = "
+              bottom:0;
+              width:100%;
+              height:0px;   /* Height of the footer */
+              color: black;
+              padding: 10px;
+              z-index: 1000;")
+  )
+  )
+shinyServer(server <- function(input,output){
+  
+  
+  #diners at the resturant
+  observeEvent(input$do, {
+    output$Hist1 <- renderPlot({
+      
+      Trials <- 1000
+      Simlist <- numeric (Trials)
+      Mean = numeric(input$Time)
+      Probability = numeric(Trials)
+      for (j in 1:input$Time){
+        
+        for (i in 1:Trials){
+          
+          Nt <- rpois(1,j*input$Lambda)
+          unifs <- runif(Nt,0,j)
+          Sn <- sort(unifs)
+          Eat <- rexp(Nt,1/input$Mu)
+          Departuretime <- Sn+Eat
+          diners<-length(which(Departuretime>j))
+          Simlist[i] <- diners} 
+        Mean[j] <- mean(Simlist)
+      }
+      foo <<- Simlist
+      plot(seq(1:input$Time),Mean, type ="l",xlab = "Time of Simulation", ylab = "Average number of people in the system",col="red", lwd=2)
+      abline(h=input$Lambda*input$Mu,col="blue", lwd=2)
+    })
+    
+    output$Hist2 <- renderPlot({
+      x <- seq(0,2*input$Lambda*input$Mu,1)
+      hist(foo,freq=FALSE,xlab="Number of People in the System", col= "Green" , ylab="Long Term Probability", main ="")
+      lines(dpois(x,input$Lambda*input$Mu),col="blue", lwd=2)
+      legend("topright", c("Simulation", "Exact Probalbiltiy"), fill=c("Green", "Blue"))
+      
+    })
+    output$Hist3 <- renderPlot({
+      y = numeric((max(foo)-min(foo)+1))
+      for (i in 1:(max(foo)-min(foo)+1)){
+        y[i] = length(foo[foo==i+min(foo)])/1000
+      }
+      y_lower = numeric()
+      y_upper = numeric()
+      for (i in 1:length(y)){
+        y_lower[i] = y[i]-1.96*sqrt(y[i]*(1-y[i])/1000)
+        y_upper[i] = y[i]+1.96*sqrt(y[i]*(1-y[i])/1000)
+      }
+      x = seq(min(foo),max(foo),1)
+      plot(x,y,type ="l",xlab="Number of People in the System", ylab="Long Term Probability with 95% Confidence Interval")
+      polygon(c(x,rev(x)),c(y_lower,rev(y_upper)),col = rgb(1, 0, 0,0.5), border = NA)
+      #plot(x = x_raw, y = y,type = 'p')
+      lines(x, y = y_lower, type ="l", col = 'blue',lwd=2)
+      lines(x, y, lwd=2)
+      lines(x, y = y_upper, type ="l", col = 'green',lwd=2)
+      legend("topright", c("Upper Bound", "Estimated Probability","Lower Bound"), fill=c("Green", "Black","Blue"))
+      yy = numeric()
+      for (i in 1:max(foo)){
+        yy[i] = length(foo[foo==i])/1000
+      }
+    }) 
+    output$trueval <- renderText({
+      c("The exact average value of the number of people in the system which is equal to (rate of arrival)/(1/average service time) is:", input$Lambda*input$Mu)
+    })
+    output$confidence <- renderText({
+      s <- t.test(foo) 
+      p = paste("95 percent confidence interval is:","(", round(s$conf.int[1], 4),",",round(s$conf.int[2], 4),")", " and sample estimate for mean is:" , s$estimate)
+      p
+    })
+    output$reverse <- renderText({
+      reversibility = paste("Checking time reversibility for this death and birth process by evaluating local balance equations by randomly selecting 3 different pairs of states...")
+    })
+    output$reverse2 <- renderUI({
+      R <- numeric()
+      for(i in min(foo):max(foo)){
+        R[i] <- dpois(i,input$Lambda*input$Mu)*input$Lambda - dpois(i+1,input$Lambda*input$Mu)*(i+1)*1/input$Mu
+      }
+      str1 <- paste("State", min(foo), "and", min(foo)+1, ": ", round(R[min(foo)], 20), "(first state with non-zero frequency)")
+      str2 <- paste("State", input$Lambda*input$Mu, "and", input$Lambda*input$Mu + 1,  ": ", round(R[input$Lambda*input$Mu], 20))
+      str3 <- paste("State", max(foo)-1,  "and", max(foo), ": ", round(R[max(foo)],20), "(last state with non-zero frequency)")
+      HTML(paste(str1, str2 ,str3 , sep = "<br/>"))
+    })
+    output$reverse3 <- renderText({
+      reversibility = paste("All the results can be estimated to zero which show that this process is in fact time reversible!")
+    })
+  })
+})
+shinyApp(ui=ui,server=server)
